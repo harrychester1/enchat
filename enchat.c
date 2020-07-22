@@ -20,7 +20,6 @@
 //encryption and hashing
 //---------------------------------------------------------------------------------------------------------------
 
-
 void encryptionerror(){         //is called on error with encryption (for future error handling and testing)
     //printf("encryption failed\n");
 }
@@ -40,7 +39,7 @@ void getiv(unsigned char *iv){  //generates 16 cryptographically pseudo random b
     *(iv + 16) = '\0';                  //appends a null character
 }
 
-int decrypt(unsigned char *key, char *msgrecieved, char **out){   //extracts the ciphertext from the message sent and decrypts it using the passed in key and iv taken from the message sent
+int decrypt(unsigned char *key, char *msgrecieved, char **out){     //extracts the ciphertext from the message sent and decrypts it using the passed in key and iv taken from the message sent
     EVP_CIPHER_CTX *ctx;
     int len, plainlen, cipherlen, i = 0;
     unsigned char ciphertext[3000], initvector[17];
@@ -81,7 +80,7 @@ int decrypt(unsigned char *key, char *msgrecieved, char **out){   //extracts the
     return plainlen + 1;                        //returns a the size of the decrypted plaintext
 }
 
-int encrypt(char *plaintext, unsigned char *key, char **output){     //encrypts the plaintext passed into it and builds the message that will be sent over the network
+int encrypt(char *plaintext, unsigned char *key, char **output){    //encrypts the plaintext passed into it and builds the message that will be sent over the network
     EVP_CIPHER_CTX *ctx;
     int len, clen;
     char temp[5], plaintexttemp[2048], msgtosend[2568];
@@ -114,7 +113,7 @@ int encrypt(char *plaintext, unsigned char *key, char **output){     //encrypts 
     return clen + 21;       //returns the size of the message to be send
 }
 
-unsigned char *hashpword(char password[32]){                         //generates a sha256 of the string passed in
+unsigned char *hashpword(char password[32]){                        //generates a sha256 of the string passed in
     unsigned char hash[SHA256_DIGEST_LENGTH];
     unsigned char *hashp;
     size_t length = strlen(password);
@@ -123,7 +122,6 @@ unsigned char *hashpword(char password[32]){                         //generates
     memcpy(hashp, hash, SHA256_DIGEST_LENGTH);
     return hashp;                               //returns a pointer to the hashed password
 }
-
 
 //---------------------------------------------------------------------------------------------------------------
 //client fork
@@ -138,7 +136,6 @@ int socconnect(struct sockaddr_in server){
     return sockfd;
 }
 
-
 void sendmessage(int sockfd, char *key){ 
     char msg[2048];
     char **ctextp;
@@ -151,7 +148,6 @@ void sendmessage(int sockfd, char *key){
     }while(strncmp(msg, "exit", 4) != 0);
     printf("Exited\n");
 } 
-
 
 void client(char *key){
     char msg[2048] = "hello im harry";
@@ -171,7 +167,6 @@ void client(char *key){
 //server fork
 //---------------------------------------------------------------------------------------------------------------
 
-
 int socbind(struct sockaddr_in server, struct sockaddr_in newcli){
     int len = sizeof(newcli); 
     int sockfd = socket(server.sin_family, SOCK_STREAM, 0);
@@ -185,7 +180,6 @@ int socbind(struct sockaddr_in server, struct sockaddr_in newcli){
     return newfd;
 }
 
-
 void recieve(int sockfd, unsigned char *key){ 
     char buff[2048], *msg;        // read the message from client and copy it in buffer  
     do{           
@@ -194,10 +188,9 @@ void recieve(int sockfd, unsigned char *key){
         decrypt(key, buff, &msg);
         if(buff[0] != '\0')
             printf("from other %s\n", msg);
-    } while(strncmp(&msg, "exit", 4) != 0);
+    } while(strncmp(msg, "exit", 4) != 0);
     printf("other Exit...\n");
 }
-
 
 void server(char *key){
     int socport = 8080, sockfd;
@@ -213,11 +206,9 @@ void server(char *key){
     close(sockfd);
 }
 
-
 //---------------------------------------------------------------------------------------------------------------
 //main
 //---------------------------------------------------------------------------------------------------------------
-
 
 int main(){
     char pword[32];
