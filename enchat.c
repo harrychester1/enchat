@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/socket.h> 
-#include<arpa/inet.h>	
+#include <arpa/inet.h>	
 #include <sys/types.h> 
 #include <stdlib.h> 
 #include <netdb.h> 
@@ -149,7 +149,7 @@ void sendmessage(int sockfd, char *key){
     printf("Exited\n");
 } 
 
-void client(char *key){
+void clientfork(char *key){
     char msg[2048] = "hello im harry";
     int socport = 8080;
 	struct sockaddr_in server;
@@ -192,7 +192,7 @@ void recieve(int sockfd, unsigned char *key){
     printf("other Exit...\n");
 }
 
-void server(char *key){
+void serverfork(char *key){
     int socport = 8080, sockfd;
 	struct sockaddr_in server, newcli;
     bzero(&server, sizeof(server));
@@ -207,18 +207,75 @@ void server(char *key){
 }
 
 //---------------------------------------------------------------------------------------------------------------
+//ip
+//---------------------------------------------------------------------------------------------------------------
+
+void chooseip(){
+    FILE *filep;
+    char str[2048], temp, cardname[16];
+    int cards, i = 1;
+    filep = fopen("/proc/net/dev", "r");
+
+    system("stty -echo");   // supress echo
+    system("stty cbreak");  // go to RAW mode
+    do{
+        system("clear");
+        printf("use the arrow keys to change network cards and press enter when the card you would like to use is highlighted\n");
+        cards = 0;
+        fseek(filep, SEEK_SET, 0);
+        fgets(str,2048, filep);
+        fgets(str,2048, filep);
+        while(fgets(str,2048, filep) != NULL){
+            cards++;
+            if(cards == i)
+                printf("\033[7m%s\033[0m", str);
+            else
+                printf("%s", str);
+        }
+        temp = getchar();
+        if(temp == 66 && i < cards)
+                i++; 
+        else if(temp == 65 && i >= 2)
+                i--; 
+    }while(temp != '\n');
+    system("stty echo");    // repress echo
+    system("stty -cbreak"); // go to COOKED mode
+    fseek(filep, SEEK_SET, 0);
+        fgets(str,2048, filep);
+        fgets(str,2048, filep);
+    for(int j=0;j<i;j++)
+        fgets(str,2048, filep);
+    for(int j=0;j<16;j++){
+        if(str[j] == ':'){
+            cardname[j] = '\0';
+            j = 16;
+        }
+        else
+           cardname[j] = str[j];
+    }
+    //printf("%s\n", cardname);
+    getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res);
+}
+
+//---------------------------------------------------------------------------------------------------------------
 //main
 //---------------------------------------------------------------------------------------------------------------
 
 int main(){
     char pword[32];
     unsigned char *key;
+    int port;
+    //printf("\033[7m");
+    chooseip();
     printf("plese enter encryption password: ");
     scanf("%s", pword);
+    
+    printf("plese enter port: ");
+    scanf("%d", &port);
     key = hashpword(pword);
     int pid = fork();
     if(pid == 0)
-       client(key);
+       clientfork(key);
     else 
-       server(key); 
+       serverfork(key); 
 }
