@@ -14,6 +14,10 @@
 #include <openssl/sha.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
+#include <ifaddrs.h>
+#include <linux/if_link.h>
+
+#define _GNU_SOURCE 
 #define SA struct sockaddr 
 
 //---------------------------------------------------------------------------------------------------------------
@@ -149,7 +153,7 @@ void sendmessage(int sockfd, char *key){
     printf("Exited\n");
 } 
 
-void clientfork(char *key){
+void clientfork(char *key, char rb){
     char msg[2048] = "hello im harry";
     int socport = 8080;
 	struct sockaddr_in server;
@@ -187,12 +191,12 @@ void recieve(int sockfd, unsigned char *key){
         read(sockfd, buff, 1024);
         decrypt(key, buff, &msg);
         if(buff[0] != '\0')
-            printf("from other %s\n", msg);
+            printf("\033[Hfrom other %s\n", msg);
     } while(strncmp(msg, "exit", 4) != 0);
-    printf("other Exit...\n");
+    printf("\033[Hother Exit...\n");
 }
 
-void serverfork(char *key){
+void serverfork(char *key, char rb){
     int socport = 8080, sockfd;
 	struct sockaddr_in server, newcli;
     bzero(&server, sizeof(server));
@@ -207,17 +211,67 @@ void serverfork(char *key){
 }
 
 //---------------------------------------------------------------------------------------------------------------
-//ip
+//settings
 //---------------------------------------------------------------------------------------------------------------
+
+char *ifiptest(){
+    struct ifaddrs *ifaddr, *ifa;
+    int family, s, cards, i = 1;
+    char host[NI_MAXHOST], temp, chosenhost[NI_MAXHOST];
+    if(getifaddrs(&ifaddr) == -1){
+        perror("getifaddrs");
+        exit(EXIT_FAILURE);
+    }    
+    system("stty -echo");   // supress echo
+    system("stty cbreak");  // go to RAW mode
+    bzero(chosenhost, NI_MAXHOST);
+    do{
+        system("clear");
+        printf("use the arrow keys to change network cards and press enter when the card you would like to use is highlighted.\n");
+        cards = 0;
+        for(ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next){
+            if(ifa->ifa_addr == NULL)
+                continue;
+            family = ifa->ifa_addr->sa_family;
+            if(family == AF_INET){
+                cards++;
+                s = getnameinfo(ifa->ifa_addr, sizeof(struct sockaddr_in), host, NI_MAXHOST, NULL, 0, NI_NUMERICHOST);
+                if(s != 0)
+                    printf("getnameinfo() failed: %s\n", gai_strerror(s));
+                if(cards == i){
+                    strcpy(chosenhost, host);
+                    printf("\033[7m%-8s\taddress: <%s>\n\033[0m", ifa->ifa_name, host);
+                }
+                else
+                    printf("%-8s\taddress: <%s>\n",ifa->ifa_name, host);
+            }
+        } 
+        if(temp != '\n'){
+            temp = getchar();
+            if(temp == 66 && i < cards)
+                i++; 
+            else if(temp == 65 && i >= 2)
+                i--; 
+        }else{
+            i = 0;
+        } 
+    }while(i != 0);
+
+    freeifaddrs(ifaddr);
+    system("stty echo");   // supress echo
+    system("stty -cbreak");  // go to RAW mode
+    char *point = malloc(NI_MAXHOST);
+    strcpy(point, chosenhost);
+    return point;
+}
 
 void chooseip(){
     FILE *filep;
+    struct ifaddrs *ifaddr, *ifa;
     char str[2048], temp, cardname[16];
     int cards, i = 1;
-    filep = fopen("/proc/net/dev", "r");
+    filep = fopen("/proc/net/route", "r");
 
-    system("stty -echo");   // supress echo
-    system("stty cbreak");  // go to RAW mode
     do{
         system("clear");
         printf("use the arrow keys to change network cards and press enter when the card you would like to use is highlighted\n");
@@ -254,7 +308,31 @@ void chooseip(){
            cardname[j] = str[j];
     }
     //printf("%s\n", cardname);
-    getaddrinfo(const char *node, const char *service, const struct addrinfo *hints, struct addrinfo **res);
+}
+
+char portselect(){
+    char temp, ret;
+    int c;    
+    while ( (c = getchar()) != '\n' && c != EOF ){ } //clears the input buffer which has a \n from the prev prompt
+    temp = 65;
+    system("stty -echo");   // supress echo
+    system("stty cbreak");  // go to RAW mode
+    do{
+        system("clear");
+        printf("are you red or blue?\n");
+        if(temp == 65){
+            printf("\033[30;41mRED\n\033[0mBLUE\n");
+            ret = 'r';
+        }
+        else if(temp == 66){
+            printf("RED\n\033[30;44mBLUE\033[0m\n");
+                    ret = 'b';
+        }
+        temp = getchar();
+    }while(temp!='\n');
+    system("stty echo");   // supress echo
+    system("stty -cbreak");  // go to RAW mode 
+    return ret;
 }
 
 //---------------------------------------------------------------------------------------------------------------
@@ -263,19 +341,18 @@ void chooseip(){
 
 int main(){
     char pword[32];
-    unsigned char *key;
+    unsigned char *key, *lhost;
     int port;
-    //printf("\033[7m");
-    chooseip();
-    printf("plese enter encryption password: ");
+    lhost = ifiptest();
+    system("clear");
+    printf("plese enter encryption password: " );   //"\033[H"
     scanf("%s", pword);
-    
-    printf("plese enter port: ");
-    scanf("%d", &port);
+    char rb = portselect();
     key = hashpword(pword);
     int pid = fork();
+    printf("started\n");
     if(pid == 0)
-       clientfork(key);
+       clientfork(key, rb);
     else 
-       serverfork(key); 
+       serverfork(key, rb); 
 }
