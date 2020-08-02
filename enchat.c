@@ -16,6 +16,9 @@
 #include <openssl/err.h>
 #include <ifaddrs.h>
 #include <linux/if_link.h>
+#include <sys/mman.h>
+#include <signal.h>
+#include <wait.h>
 
 #define _GNU_SOURCE 
 #define SA struct sockaddr 
@@ -134,9 +137,9 @@ unsigned char *hashpword(char password[32]){                        //generates 
 int socconnect(struct sockaddr_in server){
     int sockfd = socket(server.sin_family, SOCK_STREAM, 0);
     if (sockfd == -1)
-        printf("socket machine broke\n"); 
+        return 0; 
     if(connect(sockfd, (SA*)&server, sizeof(server)) != 0)
-        printf("connect broke\n");
+        return 0; 
     return sockfd;
 }
 
@@ -153,16 +156,24 @@ void sendmessage(int sockfd, char *key){
     printf("Exited\n");
 } 
 
-void clientfork(char *key, char rb){
+void clientfork(char *key, int *pids){
+    printf("cli started\n");
     char msg[2048] = "hello im harry";
-    int socport = 8080;
+    int socport = 9169, sockfd = 0, killpid;
 	struct sockaddr_in server;
+    *(pids+1) = getpid();
+    sleep(1);
+    killpid = *pids;
     bzero(&server, sizeof(server));
     server.sin_addr.s_addr = inet_addr("127.0.0.1");
     server.sin_family = AF_INET;
 	server.sin_port = htons(socport);
-    int sockfd = socconnect(server);
-    
+    while(sockfd == 0){
+        sockfd = socconnect(server);
+        sleep(5);
+    }
+    printf("%d\n", sockfd);
+    kill(killpid, SIGKILL);
     sendmessage(sockfd, key);
     close(sockfd);
 }
@@ -196,15 +207,20 @@ void recieve(int sockfd, unsigned char *key){
     printf("\033[Hother Exit...\n");
 }
 
-void serverfork(char *key, char rb){
-    int socport = 8080, sockfd;
+void serverfork(char *key, int *pids){
+    printf("serv started\n");
+    int socport = 6991, sockfd, killpid;
 	struct sockaddr_in server, newcli;
+    *pids = getpid();
+    sleep(1);
+    killpid = *(pids);
     bzero(&server, sizeof(server));
     server.sin_addr.s_addr = htonl(INADDR_ANY); 
     server.sin_family = AF_INET;
 	server.sin_port = htons(socport);
     printf("binding to socket\n");
     sockfd = socbind(server, newcli);
+    kill(killpid, SIGKILL);
     printf("waiting for incoming message\n");
     recieve(sockfd, key);
     close(sockfd);
@@ -349,10 +365,18 @@ int main(){
     scanf("%s", pword);
     char rb = portselect();
     key = hashpword(pword);
-    int pid = fork();
+
+    int* pids = mmap(NULL, getpagesize(), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+
+    int clipid = fork();
+    int servpid = fork();
     printf("started\n");
-    if(pid == 0)
-       clientfork(key, rb);
-    else 
-       serverfork(key, rb); 
+    if(clipid == 0 && servpid == 0)
+        exit(0);
+    else if(clipid > 0 && servpid == 0)
+       clientfork(key, pids);
+    else if(clipid == 0 && servpid > 0)
+       serverfork(key, pids); 
+    else
+        wait(NULL);
 }
